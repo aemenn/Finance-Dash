@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BHD Comprehensive Finance Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #050508;
+            --bg-secondary: #0f0f17;
+            --bg-card: #12121c;
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --accent-purple: #a855f7;
+            --accent-purple-glow: rgba(168, 85, 247, 0.15);
+            --accent-amber: #f59e0b;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border-color: #272738;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background-color: var(--bg-primary); color: var(--text-main); min-height: 100vh; padding: 16px; display: flex; justify-content: center; }
+        .app-container { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 16px; padding-bottom: 40px; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+        h1 { font-size: 1.25rem; font-weight: 700; color: var(--text-main); background: linear-gradient(135deg, #fff 0%, #c084fc 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .btn-icon { background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: flex; gap: 6px; align-items: center; transition: all 0.2s; }
+        .btn-icon:hover { border-color: var(--accent-purple); }
+        
+        .card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; box-shadow: 0 8px 16px -4px rgba(0,0,0,0.5); }
+        .balance-card { background: linear-gradient(135deg, #13111c 0%, #08070b 100%); border: 1px solid rgba(168, 85, 247, 0.3); text-align: center; position: relative; overflow: hidden; box-shadow: 0 10px 25px -5px var(--accent-purple-glow); }
+        .balance-label { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+        .balance-amount { font-size: 2.25rem; font-weight: 700; color: var(--accent-purple); margin-bottom: 12px; text-shadow: 0 0 20px rgba(168, 85, 247, 0.3); }
+        
+        .flow-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; border-top: 1px solid var(--border-color); padding-top: 14px; text-align: center; }
+        .flow-item span { display: block; font-size: 0.7rem; color: var(--text-muted); }
+        .flow-item strong { font-size: 0.85rem; color: var(--text-main); }
+
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .btn-action { padding: 14px; border-radius: 12px; border: none; font-weight: 600; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; color: white; transition: opacity 0.2s; }
+        .btn-action:active { opacity: 0.8; }
+        .btn-income { background-color: var(--accent-green); }
+        .btn-expense { background-color: var(--accent-red); }
+
+        .section-title { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: var(--text-main); display: flex; justify-content: space-between; align-items: center; }
+        
+        .transaction-list { display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; }
+        .tx-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); }
+        .tx-info { display: flex; flex-direction: column; gap: 2px; }
+        .tx-title { font-weight: 600; font-size: 0.9rem; }
+        .tx-category { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+        .tx-amount { font-weight: 700; font-size: 0.95rem; }
+        .tx-amount.income { color: var(--accent-green); }
+        .tx-amount.expense { color: var(--accent-red); }
+
+        .bucket-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 10px; margin-bottom: 8px; font-size: 0.85rem; border: 1px solid var(--border-color); }
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+        .badge.budget { background: rgba(168, 85, 247, 0.15); color: var(--accent-purple); border: 1px solid rgba(168, 85, 247, 0.3); }
+        .badge.consumed { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: 100; justify-content: center; align-items: flex-end; }
+        .modal.active { display: flex; }
+        .modal-content { background: var(--bg-secondary); width: 100%; max-width: 480px; border-top-left-radius: 24px; border-top-right-radius: 24px; padding: 24px; max-height: 90vh; overflow-y: auto; border-top: 1px solid var(--accent-purple); animation: slideUp 0.3s ease; position: relative; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .btn-close-modal { background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-main); width: 32px; height: 32px; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; }
+        .btn-close-modal:hover { background: rgba(239, 68, 68, 0.2); border-color: var(--accent-red); }
+
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+        .form-control { width: 100%; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 10px; color: white; font-size: 1rem; }
+        .form-control:focus { outline: none; border-color: var(--accent-purple); box-shadow: 0 0 10px rgba(168, 85, 247, 0.2); }
+        
+        .btn-submit { width: 100%; padding: 14px; background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%); color: white; border: none; border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer; margin-top: 10px; box-shadow: 0 4px 12px rgba(147, 51, 234, 0.3); }
+        .flex-row { display: flex; gap: 8px; }
+        .btn-delete { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.3); padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 0.75rem; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <h1>Dashboard</h1>
+            <select id="activeMonth" class="form-control" style="padding: 6px 10px; font-size:0.85rem; width:auto;" onchange="changeMonth()">
+                <option value="January">January</option>
+                <option value="February">February</option>
+                <option value="March">March</option>
+                <option value="April">April</option>
+                <option value="May">May</option>
+                <option value="June">June</option>
+                <option value="July">July</option>
+                <option value="August">August</option>
+                <option value="September">September</option>
+                <option value="October">October</option>
+                <option value="November">November</option>
+                <option value="December">December</option>
+            </select>
+        </div>
+        <button class="btn-icon" onclick="openBaselineModal()">⚙️ Config</button>
+    </header>
+
+    <!-- Balance Card -->
+    <div class="card balance-card">
+        <div class="balance-label">Grand Net Spendable Balance</div>
+        <div class="balance-amount" id="displayBalance">0.000 BHD</div>
+        <div class="flow-summary">
+            <div class="flow-item">
+                <span>Gross + Trans.</span>
+                <strong id="displayGrossTotal">0.000 BHD</strong>
+            </div>
+            <div class="flow-item">
+                <span>Deductions & Bank</span>
+                <strong id="displayTotalDeductions">0.000 BHD</strong>
+            </div>
+            <div class="flow-item">
+                <span>Commitments</span>
+                <strong id="displayCommitments">0.000 BHD</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-grid">
+        <button class="btn-action btn-income" onclick="openTxModal('income')">＋ Quick Income</button>
+        <button class="btn-action btn-expense" onclick="openTxModal('expense')">－ Log Expense</button>
+    </div>
+
+    <!-- Spending Monitor Dashboard -->
+    <div class="card">
+        <div class="section-title"><span>Category Spending Monitor</span></div>
+        <div id="categoryMonitor" style="display:flex; flex-direction:column; gap:10px; font-size:0.85rem;"></div>
+    </div>
+
+    <!-- Savings Bucket & Budgets -->
+    <div class="card">
+        <div class="section-title">
+            <span>Savings Bucket & Budgets</span>
+            <div style="display:flex; gap:6px;">
+                <button class="btn-icon" style="padding:4px 8px; font-size:0.7rem; border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openBucketModal('Budget')">+ Add Budget</button>
+                <button class="btn-icon" style="padding:4px 8px; font-size:0.7rem; border-color:var(--accent-red); color:var(--accent-red);" onclick="openBucketModal('Consumed')">- Consume</button>
+            </div>
+        </div>
+        <div id="bucketList"></div>
+    </div>
+
+    <!-- Recent Transactions -->
+    <div class="card">
+        <div class="section-title">
+            <span>Recent Activity</span>
+            <span style="font-size:0.75rem; color:var(--text-muted);" id="txCount">0 transactions</span>
+        </div>
+        <div class="transaction-list" id="txList">
+            <div style="text-align:center; color:var(--text-muted); padding: 20px; font-size:0.85rem;">No transactions logged yet.</div>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Modal -->
+<div class="modal" id="baselineModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="section-title" style="margin-bottom:0;">Config (<span id="modalMonthTitle"></span>)</div>
+            <button class="btn-close-modal" onclick="closeModal('baselineModal')">✕</button>
+        </div>
+        
+        <div class="section-title" style="font-size:0.9rem; color:var(--accent-blue);">Income & Allowances</div>
+        <div class="form-group"><label>Gross Salary (BHD)</label><input type="number" id="baseGross" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Transportation Allowance (BHD)</label><input type="number" id="baseTrans" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Side Income (BHD)</label><input type="number" id="baseSide" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Carried Over Balance from Last Month (BHD)</label><input type="number" id="baseCarryOver" class="form-control" placeholder="0" readonly style="opacity: 0.7;"></div>
+
+        <div class="section-title" style="font-size:0.9rem; color:var(--accent-amber); margin-top:10px;">Deductions</div>
+        <div class="form-group"><label>Savings Contribution (BHD)</label><input type="number" id="baseSavContrib" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Savings Loan (BHD)</label><input type="number" id="baseSavLoan" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Internal Loan Payment (BHD)</label><input type="number" id="baseIntLoan" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Internal Loan Remaining Balance (BHD)</label><input type="number" id="baseIntLoanRem" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>SIO Contribution (BHD)</label><input type="number" id="baseSio" class="form-control" placeholder="0"></div>
+
+        <div class="section-title" style="font-size:0.9rem; color:var(--accent-purple); margin-top:10px;">Bank Deductions</div>
+        <div class="form-group"><label>Mazaya (BHD)</label><input type="number" id="bankMazaya" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Mortgage (BHD)</label><input type="number" id="bankMortgage" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Personal Loan (BHD)</label><input type="number" id="bankPersonal" class="form-control" placeholder="0"></div>
+
+        <div class="section-title" style="font-size:0.9rem; color:var(--accent-green); margin-top:10px;">
+            <span>Commitments</span>
+            <button class="btn-icon" style="padding:2px 6px; font-size:0.7rem;" onclick="addCustomFieldPrompt()">+ Add Field</button>
+        </div>
+        <div id="customCommitmentsContainer"></div>
+
+        <button class="btn-submit" onclick="saveBaseline()">Save & Update</button>
+    </div>
+</div>
+
+<!-- Savings Bucket & Budget Modal -->
+<div class="modal" id="bucketModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="section-title" id="bucketModalTitle" style="margin-bottom:0;">Add Budget</div>
+            <button class="btn-close-modal" onclick="closeModal('bucketModal')">✕</button>
+        </div>
+        <input type="hidden" id="bucketType">
+        <div class="form-group"><label>Item / Purpose Name</label><input type="text" id="bucketName" class="form-control" placeholder="e.g. Supra Track Day / Car Insurance"></div>
+        <div class="form-group"><label>Amount (BHD)</label><input type="number" id="bucketAmount" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Source of Money / Description</label><input type="text" id="bucketSource" class="form-control" placeholder="e.g. Funded from Savings Contribution"></div>
+        <button class="btn-submit" onclick="saveBucketItem()">Save Entry</button>
+    </div>
+</div>
+
+<!-- Transaction Modal -->
+<div class="modal" id="txModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="section-title" id="txModalTitle" style="margin-bottom:0;">Add Transaction</div>
+            <button class="btn-close-modal" onclick="closeModal('txModal')">✕</button>
+        </div>
+        <input type="hidden" id="txType">
+        <div class="form-group"><label>Amount (BHD)</label><input type="number" step="0.001" id="txAmount" class="form-control" placeholder="0.000"></div>
+        <div class="form-group">
+            <label>Category</label>
+            <select id="txCategory" class="form-control">
+                <option value="Groceries">Groceries</option>
+                <option value="Fuel">Fuel</option>
+                <option value="Dining">Dining</option>
+                <option value="Bills">Bills</option>
+                <option value="Entertainment">Entertainment</option>
+                <option value="Nanny">Nanny</option>
+                <option value="Car Wash">Car Wash</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+        <div class="form-group"><label>Note / Description</label><input type="text" id="txNote" class="form-control" placeholder="e.g. Super 98 fuel"></div>
+        <button class="btn-submit" onclick="addTransaction()">Add Entry</button>
+    </div>
+</div>
+
+<script>
+    const monthsList = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    
+    // Auto-detect current month on startup
+    let currentMonth = monthsList[new Date().getMonth()];
+    let allData = JSON.parse(localStorage.getItem('bhd_comprehensive_finance')) || {};
+
+    function calculateMonthNet(monthName) {
+        let data = allData[monthName];
+        if (!data) return 0;
+        let totalGross = Number(data.gross) + Number(data.trans) + Number(data.side) + Number(data.carryOver || 0);
+        let totalDeductions = Number(data.savContrib) + Number(data.savLoan) + Number(data.intLoan) + Number(data.sio);
+        let totalBank = Number(data.bankMazaya) + Number(data.bankMortgage) + Number(data.bankPersonal);
+        let totalCommitments = Object.values(data.commitments).reduce((sum, val) => sum + Number(val), 0);
+        let grandNet = totalGross - (totalDeductions + totalBank + totalCommitments);
+
+        let totalSpent = 0;
+        let totalExtraIncome = 0;
+        data.transactions.forEach(t => {
+            if(t.type === 'income') totalExtraIncome += Number(t.amount);
+            else totalSpent += Number(t.amount);
+        });
+        return grandNet + totalExtraIncome - totalSpent;
+    }
+
+    function getMonthData(month) {
+        if (!allData[month]) {
+            // Find previous month to pull carry over balance & remaining internal loan balance
+            let mIndex = monthsList.indexOf(month);
+            let prevMonthName = mIndex > 0 ? monthsList[mIndex - 1] : "December";
+            let prevData = allData[prevMonthName];
+            
+            let carriedBalance = prevData ? calculateMonthNet(prevMonthName) : 0;
+            let carriedLoanRem = prevData ? Number(prevData.intLoanRem || 0) : 1200;
+
+            allData[month] = {
+                gross: 1500, trans: 100, side: 50, carryOver: carriedBalance,
+                savContrib: 100, savLoan: 50, intLoan: 50, intLoanRem: carriedLoanRem, sio: 45,
+                bankMazaya: 250, bankMortgage: 180, bankPersonal: 120,
+                commitments: {
+                    "Nanny Salary": 200,
+                    "Car Wash Salary": 15,
+                    "Batelco Bills": 45,
+                    "EWA": 65,
+                    "Groceries Budget": 180
+                },
+                transactions: [],
+                buckets: []
+            };
+        } else {
+            // Update carry over dynamically from previous month if not customized
+            let mIndex = monthsList.indexOf(month);
+            if (mIndex > 0) {
+                let prevMonthName = monthsList[mIndex - 1];
+                if (allData[prevMonthName]) {
+                    allData[month].carryOver = calculateMonthNet(prevMonthName);
+                }
+            }
+        }
+        return allData[month];
+    }
+
+    function changeMonth() {
+        currentMonth = document.getElementById('activeMonth').value;
+        updateUI();
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+    }
+
+    function updateUI() {
+        let data = getMonthData(currentMonth);
+        document.getElementById('activeMonth').value = currentMonth;
+
+        let totalGross = Number(data.gross) + Number(data.trans) + Number(data.side) + Number(data.carryOver || 0);
+        let totalDeductions = Number(data.savContrib) + Number(data.savLoan) + Number(data.intLoan) + Number(data.sio);
+        let totalBank = Number(data.bankMazaya) + Number(data.bankMortgage) + Number(data.bankPersonal);
+        
+        let totalCommitments = Object.values(data.commitments).reduce((sum, val) => sum + Number(val), 0);
+        let grandNet = totalGross - (totalDeductions + totalBank + totalCommitments);
+
+        let totalSpent = 0;
+        let totalExtraIncome = 0;
+        let catSpending = {};
+
+        data.transactions.forEach(t => {
+            if(t.type === 'income') {
+                totalExtraIncome += Number(t.amount);
+            } else {
+                totalSpent += Number(t.amount);
+                catSpending[t.category] = (catSpending[t.category] || 0) + Number(t.amount);
+            }
+        });
+
+        let currentBalance = grandNet + totalExtraIncome - totalSpent;
+
+        document.getElementById('displayBalance').innerText = currentBalance.toFixed(3) + ' BHD';
+        document.getElementById('displayGrossTotal').innerText = totalGross.toFixed(3) + ' BHD';
+        document.getElementById('displayTotalDeductions').innerText = (totalDeductions + totalBank).toFixed(3) + ' BHD';
+        document.getElementById('displayCommitments').innerText = totalCommitments.toFixed(3) + ' BHD';
+
+        // Render Spending Monitor
+        let monitorEl = document.getElementById('categoryMonitor');
+        let monitorHtml = '';
+        let allCategories = ["Groceries", "Fuel", "Dining", "Bills", "Entertainment", "Nanny", "Car Wash", "Other"];
+        allCategories.forEach(cat => {
+            let spent = catSpending[cat] || 0;
+            monitorHtml += `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:8px 10px; border-radius:6px; border:1px solid var(--border-color);">
+                    <span>${cat}</span>
+                    <strong>${spent.toFixed(3)} BHD</strong>
+                </div>
+            `;
+        });
+        monitorEl.innerHTML = monitorHtml;
+
+        // Render Savings Buckets & Budgets
+        let bucketEl = document.getElementById('bucketList');
+        if(data.buckets.length === 0) {
+            bucketEl.innerHTML = `<div style="text-align:center; color:var(--text-muted); font-size:0.8rem; padding:10px;">No budget or consumption entries added.</div>`;
+        } else {
+            bucketEl.innerHTML = data.buckets.map((b, idx) => `
+                <div class="bucket-item">
+                    <div>
+                        <strong>${b.name}</strong>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">Amount: ${Number(b.amount).toFixed(3)} BHD</div>
+                        <div style="font-size:0.75rem; color:var(--accent-purple); margin-top:2px;">Source: ${b.source || 'General'}</div>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <span class="badge ${b.type.toLowerCase()}">${b.type}</span>
+                        <button class="btn-delete" onclick="deleteBucketItem(${idx})">✕</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Transactions list
+        let listEl = document.getElementById('txList');
+        document.getElementById('txCount').innerText = `${data.transactions.length} transactions`;
+        if(data.transactions.length === 0) {
+            listEl.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding: 20px; font-size:0.85rem;">No transactions logged for ${currentMonth}.</div>`;
+            return;
+        }
+
+        listEl.innerHTML = data.transactions.slice().reverse().map((t, idx) => `
+            <div class="tx-item">
+                <div class="tx-info">
+                    <span class="tx-title">${t.note || t.category}</span>
+                    <span class="tx-category">${t.category}</span>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <span class="tx-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${Number(t.amount).toFixed(3)} BHD</span>
+                    <button class="btn-delete" onclick="deleteTx(${data.transactions.length - 1 - idx})">✕</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function openBaselineModal() {
+        let data = getMonthData(currentMonth);
+        document.getElementById('modalMonthTitle').innerText = currentMonth;
+        document.getElementById('baseGross').value = data.gross;
+        document.getElementById('baseTrans').value = data.trans;
+        document.getElementById('baseSide').value = data.side;
+        document.getElementById('baseCarryOver').value = Number(data.carryOver || 0).toFixed(3);
+        document.getElementById('baseSavContrib').value = data.savContrib;
+        document.getElementById('baseSavLoan').value = data.savLoan;
+        document.getElementById('baseIntLoan').value = data.intLoan;
+        document.getElementById('baseIntLoanRem').value = data.intLoanRem;
+        document.getElementById('baseSio').value = data.sio;
+        document.getElementById('bankMazaya').value = data.bankMazaya;
+        document.getElementById('bankMortgage').value = data.bankMortgage;
+        document.getElementById('bankPersonal').value = data.bankPersonal;
+
+        renderCustomCommitmentsForm();
+        document.getElementById('baselineModal').classList.add('active');
+    }
+
+    function renderCustomCommitmentsForm() {
+        let data = getMonthData(currentMonth);
+        let container = document.getElementById('customCommitmentsContainer');
+        let html = '';
+        for(let key in data.commitments) {
+            html += `
+                <div class="flex-row" style="margin-bottom:8px;">
+                    <input type="text" class="form-control commitment-key" value="${key}" style="flex:1;" />
+                    <input type="number" class="form-control commitment-val" value="${data.commitments[key]}" style="width:110px;" />
+                    <button class="btn-delete" type="button" onclick="this.parentElement.remove()">✕</button>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+    }
+
+    function addCustomFieldPrompt() {
+        let name = prompt("Enter new commitment name (e.g. Netflix, Gym):");
+        if(!name) return;
+        let container = document.getElementById('customCommitmentsContainer');
+        let div = document.createElement('div');
+        div.className = "flex-row";
+        div.style.marginBottom = "8px";
+        div.innerHTML = `
+            <input type="text" class="form-control commitment-key" value="${name}" style="flex:1;" />
+            <input type="number" class="form-control commitment-val" value="0" style="width:110px;" />
+            <button class="btn-delete" type="button" onclick="this.parentElement.remove()">✕</button>
+        `;
+        container.appendChild(div);
+    }
+
+    function saveBaseline() {
+        let data = getMonthData(currentMonth);
+        data.gross = document.getElementById('baseGross').value;
+        data.trans = document.getElementById('baseTrans').value;
+        data.side = document.getElementById('baseSide').value;
+        data.savContrib = document.getElementById('baseSavContrib').value;
+        data.savLoan = document.getElementById('baseSavLoan').value;
+        data.intLoan = document.getElementById('baseIntLoan').value;
+        
+        let enteredRem = Number(document.getElementById('baseIntLoanRem').value);
+        let paidIntLoan = Number(data.intLoan);
+        data.intLoanRem = Math.max(0, enteredRem - paidIntLoan);
+
+        data.sio = document.getElementById('baseSio').value;
+        data.bankMazaya = document.getElementById('bankMazaya').value;
+        data.bankMortgage = document.getElementById('bankMortgage').value;
+        data.bankPersonal = document.getElementById('bankPersonal').value;
+
+        let keys = document.querySelectorAll('.commitment-key');
+        let vals = document.querySelectorAll('.commitment-val');
+        let newCommitments = {};
+        for(let i=0; i<keys.length; i++) {
+            let k = keys[i].value.trim();
+            let v = vals[i].value;
+            if(k) newCommitments[k] = v;
+        }
+        data.commitments = newCommitments;
+
+        localStorage.setItem('bhd_comprehensive_finance', JSON.stringify(allData));
+        closeModal('baselineModal');
+        updateUI();
+    }
+
+    function openTxModal(type) {
+        document.getElementById('txType').value = type;
+        document.getElementById('txModalTitle').innerText = type === 'income' ? 'Add Quick Income' : 'Log Real-time Expense';
+        document.getElementById('txAmount').value = '';
+        document.getElementById('txNote').value = '';
+        document.getElementById('txModal').classList.add('active');
+    }
+
+    function addTransaction() {
+        let data = getMonthData(currentMonth);
+        let type = document.getElementById('txType').value;
+        let amount = document.getElementById('txAmount').value;
+        let category = document.getElementById('txCategory').value;
+        let note = document.getElementById('txNote').value;
+        if(!amount || amount <= 0) return alert('Please enter a valid amount');
+        
+        data.transactions.push({ type, amount, category, note });
+        localStorage.setItem('bhd_comprehensive_finance', JSON.stringify(allData));
+        closeModal('txModal');
+        updateUI();
+    }
+
+    function deleteTx(index) {
+        let data = getMonthData(currentMonth);
+        data.transactions.splice(index, 1);
+        localStorage.setItem('bhd_comprehensive_finance', JSON.stringify(allData));
+        updateUI();
+    }
+
+    function openBucketModal(type) {
+        document.getElementById('bucketType').value = type;
+        document.getElementById('bucketModalTitle').innerText = type === 'Budget' ? 'Add Budget Source' : 'Consume Savings / Budget';
+        document.getElementById('bucketName').value = '';
+        document.getElementById('bucketAmount').value = '';
+        document.getElementById('bucketSource').value = '';
+        document.getElementById('bucketModal').classList.add('active');
+    }
+
+    function saveBucketItem() {
+        let data = getMonthData(currentMonth);
+        let type = document.getElementById('bucketType').value;
+        let name = document.getElementById('bucketName').value;
+        let amount = document.getElementById('bucketAmount').value;
+        let source = document.getElementById('bucketSource').value;
+        if(!name || !amount) return alert('Please fill in name and amount');
+        
+        data.buckets.push({ name, amount, source, type });
+        localStorage.setItem('bhd_comprehensive_finance', JSON.stringify(allData));
+        closeModal('bucketModal');
+        updateUI();
+    }
+
+    function deleteBucketItem(index) {
+        let data = getMonthData(currentMonth);
+        data.buckets.splice(index, 1);
+        localStorage.setItem('bhd_comprehensive_finance', JSON.stringify(allData));
+        updateUI();
+    }
+
+    updateUI();
+</script>
+</body>
+</html>
