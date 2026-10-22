@@ -186,6 +186,181 @@
         <div class="form-group"><label>Mortgage (BHD)</label><input type="number" id="bankMortgage" class="form-control" placeholder="0"></div>
         <div class="form-group"><label>Personal Loan (BHD)</label><input type="number" id="bankPersonal" class="form-control" placeholder="0"></div>
 
+        <div class="section-title" style="font-size:0.9rem; color:var(--accent-purple); margin-top:10px;">
+            <span>Manage Spending Categories</span>
+            <button class="btn-icon" style="padding:2px 6px; font-size:0.7rem;" onclick="addCategoryPrompt()">+ Add Category</button>
+        </div>
+        <div id="customCategoriesContainer" style="margin-bottom:14px;"></div>
+
+        <div class="section-title" style="font-size:0.9rem; color:var(--accent-green); margin-top:10px;">
+            <span>Commitments</span>
+            <button class="btn-icon" style="padding:2px 6px; font-size:0.7rem;" onclick="addCustomFieldPrompt()">+ Add Field</button>
+        </div>
+        <div id="customCommitmentsContainer"></div>
+
+        <button class="btn-submit" onclick="saveBaseline()">Save & Update</button>
+    </div>
+</div>
+
+<!-- Savings Bucket & Budget Modal -->
+<div class="modal" id="bucketModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="section-title" id="bucketModalTitle" style="margin-bottom:0;">Add Budget</div>
+            <button class="btn-close-modal" onclick="closeModal('bucketModal')">✕</button>
+        </div>
+        <input type="hidden" id="bucketType">
+        <div class="form-group"><label>Item / Purpose Name</label><input type="text" id="bucketName" class="form-control" placeholder="e.g. Supra Track Day / Car Insurance"></div>
+        <div class="form-group"><label>Amount (BHD)</label><input type="number" id="bucketAmount" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Source of Money / Description</label><input type="text" id="bucketSource" class="form-control" placeholder="e.g. Funded from Savings Contribution"></div>
+        <button class="btn-submit" onclick="saveBucketItem()">Save Entry</button>
+    </div>
+</div>
+
+<!-- Transaction Modal -->
+<div class="modal" id="txModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="section-title" id="txModalTitle" style="margin-bottom:0;">Add Transaction</div>
+            <button class="btn-close-modal" onclick="closeModal('txModal')">✕</button>
+        </div>
+        <input type="hidden" id="txType">
+        <div class="form-group"><label>Amount (BHD)</label><input type="number" step="0.001" id="txAmount" class="form-control" placeholder="0.000"></div>
+        <div class="form-group">
+            <label>Category</label>
+            <select id="txCategory" class="form-control">
+                <!-- Dynamically populated categories -->
+            </select>
+        </div>
+        <div class="form-group"><label>Note / Description</label><input type="text" id="txNote" class="form-control" placeholder="e.g. Super 98 fuel"></div>
+        <button class="btn-submit" onclick="addTransaction()">Add Entry</button>
+    </div>
+</div>
+
+<script>
+    const monthsList = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    
+    let currentMonth = monthsList[new Date().getMonth()];
+    let allData = JSON.parse(localStorage.getItem('bhd_comprehensive_finance')) || {};
+
+    // Global categories saved across months or default set
+    let globalCategories = JSON.parse(localStorage.getItem('bhd_global_categories')) || ["Groceries", "Fuel", "Dining", "Bills", "Entertainment", "Nanny", "Car Wash", "Other"];
+
+    function calculateMonthNet(monthName) {
+        let data = allData[monthName];
+        if (!data) return 0;
+        let totalGross = Number(data.gross) + Number(data.trans) + Number(data.side) + Number(data.carryOver || 0);
+        let totalDeductions = Number(data.savContrib) + Number(data.savLoan) + Number(data.intLoan) + Number(data.sio);
+        let totalBank = Number(data.bankMazaya) + Number(data.bankMortgage) + Number(data.bankPersonal);
+        let totalCommitments = Object.values(data.commitments).reduce((sum, val) => sum + Number(val), 0);
+        let grandNet = totalGross - (totalDeductions + totalBank + totalCommitments);
+
+        let totalSpent = 0;
+        let totalExtraIncome = 0;
+        data.transactions.forEach(t => {
+            if(t.type === 'income') totalExtraIncome += Number(t.amount);
+            else totalSpent += Number(t.amount);
+        });
+        return grandNet + totalExtraIncome - totalSpent;
+    }
+
+    function getMonthData(month) {
+        if (!allData[month]) {
+            let mIndex = monthsList.indexOf(month);
+            let prevMonthName = mIndex > 0 ? monthsList[mIndex - 1] : "December";
+            let prevData = allData[prevMonthName];
+            
+            let carriedBalance = prevData ? calculateMonthNet(prevMonthName) : 0;
+            let carriedLoanRem = prevData ? Number(prevData.intLoanRem || 0) : 1200;
+
+            allData[month] = {
+                gross: 1500, trans: 100, side: 50, carryOver: carriedBalance,
+                savContrib: 100, savLoan: 50, intLoan: 50, intLoanRem: carriedLoanRem, sio: 45,
+                bankMazaya: 250, bankMortgage: 180, bankPersonal: 120,
+                commitments: {
+                    "Nanny Salary": 200,
+                    "Car Wash Salary": 15,
+                    "Batelco Bills": 45,
+                    "EWA": 65,
+                    "Groceries Budget": 180
+                },
+                transactions: [],
+                buckets: []
+            };
+        } else {
+            let mIndex = monthsList.indexOf(month);
+            if (mIndex > 0) {
+                let prevMonthName = monthsList[mIndex - 1];
+                if (allData[prevMonthName]) {
+                    allData[month].carryOver = calculateMonthNet(prevMonthName);
+                }
+            }
+        }
+        return allData[month];
+    }
+
+    function changeMonth() {
+        currentMonth = document.getElementById('activeMonth').value;
+        updateUI();
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+    }
+
+    function updateUI() {
+        let data = getMonthData(currentMonth);
+        document.getElementById('activeMonth').value = currentMonth;
+
+        let totalGross = Number(data.gross) + Number(data.trans) + Number(data.side) + Number(data.carryOver || 0);
+        let totalDeductions = Number(data.savContrib) + Number(data.savLoan) + Number(data.intLoan) + Number(data.sio);
+        let totalBank = Number(data.bankMazaya) + Number(data.bankMortgage) + Number(data.bankPersonal);
+        
+        let totaldding:4px 8px; font-size:0.7rem; border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openBucketModal('Budget')">+ Add Budget</button>
+                <button class="btn-icon" style="padding:4px 8px; font-size:0.7rem; border-color:var(--accent-red); color:var(--accent-red);" onclick="openBucketModal('Consumed')">- Consume</button>
+            </div>
+        </div>
+        <div id="bucketList"></div>
+    </div>
+
+    <!-- Recent Transactions -->
+    <div class="card">
+        <div class="section-title">
+            <span>Recent Activity</span>
+            <span style="font-size:0.75rem; color:var(--text-muted);" id="txCount">0 transactions</span>
+        </div>
+        <div class="transaction-list" id="txList">
+            <div style="text-align:center; color:var(--text-muted); padding: 20px; font-size:0.85rem;">No transactions logged yet.</div>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Modal -->
+<div class="modal" id="baselineModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="section-title" style="margin-bottom:0;">Config (<span id="modalMonthTitle"></span>)</div>
+            <button class="btn-close-modal" onclick="closeModal('baselineModal')">✕</button>
+        </div>
+        
+        <div class="section-title" style="font-size:0.9rem; color:var(--accent-blue);">Income & Allowances</div>
+        <div class="form-group"><label>Gross Salary (BHD)</label><input type="number" id="baseGross" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Transportation Allowance (BHD)</label><input type="number" id="baseTrans" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Side Income (BHD)</label><input type="number" id="baseSide" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Carried Over Balance from Last Month (BHD)</label><input type="number" id="baseCarryOver" class="form-control" placeholder="0" readonly style="opacity: 0.7;"></div>
+
+        <div class="section-title" style="font-size:0.9rem; color:var(--accent-amber); margin-top:10px;">Deductions</div>
+        <div class="form-group"><label>Savings Contribution (BHD)</label><input type="number" id="baseSavContrib" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Savings Loan (BHD)</label><input type="number" id="baseSavLoan" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Internal Loan Payment (BHD)</label><input type="number" id="baseIntLoan" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Internal Loan Remaining Balance (BHD)</label><input type="number" id="baseIntLoanRem" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>SIO Contribution (BHD)</label><input type="number" id="baseSio" class="form-control" placeholder="0"></div>
+
+        <div class="section-title" style="font-size:0.9rem; color:var(--accent-purple); margin-top:10px;">Bank Deductions</div>
+        <div class="form-group"><label>Mazaya (BHD)</label><input type="number" id="bankMazaya" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Mortgage (BHD)</label><input type="number" id="bankMortgage" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Personal Loan (BHD)</label><input type="number" id="bankPersonal" class="form-control" placeholder="0"></div>
+
         <div class="section-title" style="font-size:0.9rem; color:var(--accent-green); margin-top:10px;">
             <span>Commitments</span>
             <button class="btn-icon" style="padding:2px 6px; font-size:0.7rem;" onclick="addCustomFieldPrompt()">+ Add Field</button>
